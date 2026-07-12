@@ -8,10 +8,14 @@
 # numpy・safetensors・pillow・tqdm・huggingface_hub。READMEに明記のとおり
 # transformers・diffusers は不要（TripoSplat独自実装）。
 #
-# 2026-07-12追記: torch/torchvisionはrunpod/pytorchベースイメージに既に同梱されている
-# （Dockerfile参照）。ここに無指定で含めるとpipがCUDA非対応のCPU版や別バージョンで
-# 再インストールしてしまい、ビルド時間の増大やCUDA不整合を招くリスクがあるため除外した。
+# 2026-07-12再訂正: ベースイメージをServerless専用の`runpod/base`へ切り替えた
+# （Dockerfile参照。`RUNPOD_WEBHOOK_GET_JOB`未注入によるクラッシュループの根本原因対応）。
+# `runpod/base`はPyTorchを含まないため、torch/torchvisionを再度明記する。pip公式wheelは
+# CUDA runtimeを同梱するため、ベースイメージのCUDAツールキット自体のバージョンと厳密に
+# 一致させる必要はない想定（ただし実ビルドでの動作確認はまだ行っていない）。
 runpod>=1.7.0
+torch
+torchvision
 numpy
 safetensors
 pillow
