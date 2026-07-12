@@ -50,7 +50,12 @@ RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSplat.git /opt/
 # コマンドで確認）、COPYの参照元はDockerfileからの相対パスではなく、コンテキストルート
 # （＝リポジトリルート）からの相対パスで指定する必要がある。
 COPY runpod/requirements.txt .
-RUN python -m pip install --no-cache-dir -r requirements.txt
+# 2026-07-12再訂正: `runpod/base`にはOS(Debian/apt)経由で`cryptography`等が事前導入されており、
+# pipのRECORDファイルを持たないため、pipが「安全にアンインストールできない」として
+# `uninstall-no-record-file`エラーで失敗した（実ビルドログで確認）。`--ignore-installed`で
+# 既存インストールとの衝突チェックをスキップし、pip管理下のバージョンをsite-packages内に
+# 新規インストールさせる（OS側のパッケージを壊さない、pipエコシステムでの定番回避策）。
+RUN python -m pip install --no-cache-dir --ignore-installed -r requirements.txt
 
 # モデル重み(計3.6GB)をビルド時に1回だけダウンロードし、イメージへ焼き込む（実行時に都度
 # ダウンロードすると起動が遅くなるため）。HuggingFace認証トークンは不要（2026-07-12実機検証済み）。
