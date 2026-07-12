@@ -10,19 +10,34 @@
 # Serverlessのコンテナビルド環境固有の問題（ビルド時間・ネットワーク制約等）までは
 # 検証できていない。infra/triposplat-selfhost/README.md のデプロイ手順を参照すること。
 #
-# runpod/pytorchベースイメージを使う（依頼内容記載の標準パターン）。
-#
-# 2026-07-12訂正: 当初指定していた`2.4.1-py3.11-cuda12.4.1-devel-ubuntu22.04`はDocker Hub上に
-# 実在しないタグで、RunPodの実ビルドで
-# 「failed to resolve source metadata ... not found」として失敗した（実機PodではPyTorch
-# 2.4.1+cu124が動いていたが、それはPodの既定環境であり、runpod/pytorch Hubイメージの
-# タグとは別物だった）。Docker Hub API(`hub.docker.com/v2/repositories/runpod/pytorch/tags`)
-# で実在するタグを直接確認し、現行の命名規則(`X.X.X-dev-nix-cuXXXX-torchXXX-ubuntuXXXX`)に
-# 沿った、検証時点で最も古い(=2.4.1に最も近い)組み合わせである torch 2.6.0 / CUDA 12.8.1 /
-# Ubuntu 22.04 のタグへ差し替えた。TripoSplatはPyTorchの厳密なバージョン固定を要求しない
-# （README「install torch and torchvision according to your environment」）ため、
-# 2.4.1→2.6.0の差は問題にならない想定。ただし本タグでの実ビルド確認はまだ行っていない。
-FROM runpod/pytorch:1.0.7-dev-nix-cu1281-torch260-ubuntu2204
+# 2026-07-12再訂正（クラッシュループの根本原因）: `runpod/pytorch`ベースイメージへの差し替え後、
+# ビルドは成功したが、実際のServerlessワーカーが起動直後に「exit code 1」でクラッシュループする
+# 問題が発生した。RunPod Pod上でhandler.pyを直接実行して原因を特定した結果、
+# runpod Python SDK(worker.py `_is_local()`)が
+# 「`RUNPOD_WEBHOOK_GET_JOB`環境変数が未設定 → ローカルテストモードとみなし、
+# test_input.jsonが無いのでexit(1)」という判定をしていることが判明した。
+# `RUNPOD_WEBHOOK_GET_JOB`はRunPod基盤が本番Serverlessコンテナへ自動注入するはずの変数だが、
+# `runpod/pytorch`はPod(常時起動・対話開発。Jupyter/SSH向け)用の汎用イメージであり、
+# 公式のServerless用テンプレート(`runpod-workers/worker-template`)が使う
+# `runpod/base`(Serverless専用の軽量イメージ、ENTRYPOINT無し)とは別系統である。
+# `runpod/pytorch`側の初期化処理(ENTRYPOINT相当)が環境変数の伝搬を妨げている可能性が高いと
+# 判断し、公式テンプレートと同じ`runpod/base`系列へ切り替えた。
+# Docker Hub API(`hub.docker.com/v2/repositories/runpod/base/tags`)で実在確認済みのタグ
+# （CUDA 12.9.0・Ubuntu 24.04。dev-nix系ではない方＝Serverless向けの想定）を使用する。
+# `runpod/base`はPyTorchを含まないため、requirements.txtにtorch/torchvisionを再度追加した。
+# ただし本切り替え後の実ビルド・実デプロイでの動作確認はまだ行っていない（このコミット時点）。
+FROM runpod/base:1.0.7-cuda1290-ubuntu2404
+
+# runpod/base公式テンプレート(runpod-workers/worker-template)に倣い、python3を
+# /usr/local/bin/python・python3として明示的にシンボリックリンクする（runpod/pytorchと異なり
+# 既定で`python`コマンドが用意されている保証がないため）。
+RUN ln -sf $(which python3) /usr/local/bin/python && \
+    ln -sf $(which python3) /usr/local/bin/python3
+
+# runpod/pytorchより最小構成の可能性があるため、git・pipが確実に使える保証がなく、
+# 念のため明示的にインストールする（既に入っていれば何もしない）。
+RUN apt-get update && apt-get install -y --no-install-recommends git python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -35,7 +50,7 @@ RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSplat.git /opt/
 # コマンドで確認）、COPYの参照元はDockerfileからの相対パスではなく、コンテキストルート
 # （＝リポジトリルート）からの相対パスで指定する必要がある。
 COPY runpod/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
 # モデル重み(計3.6GB)をビルド時に1回だけダウンロードし、イメージへ焼き込む（実行時に都度
 # ダウンロードすると起動が遅くなるため）。HuggingFace認証トークンは不要（2026-07-12実機検証済み）。
