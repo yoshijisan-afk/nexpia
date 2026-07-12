@@ -13,6 +13,8 @@
 # `runpod/base`はPyTorchを含まないため、torch/torchvisionを再度明記する。pip公式wheelは
 # CUDA runtimeを同梱するため、ベースイメージのCUDAツールキット自体のバージョンと厳密に
 # 一致させる必要はない想定（ただし実ビルドでの動作確認はまだ行っていない）。
+# 2026-07-12追記: R2アップロード実装(handler.py参照)にboto3を明示追加。runpod SDKの推移的
+# 依存として既に入っていることをビルドログで確認済みだが、直接使用するため明示する。
 runpod>=1.7.0
 torch
 torchvision
@@ -22,3 +24,4 @@ pillow
 tqdm
 huggingface_hub
 requests
+boto3
