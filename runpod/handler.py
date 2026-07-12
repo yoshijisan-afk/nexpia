@@ -27,16 +27,24 @@
 # 使い回す」パターン（依頼内容記載のとおり）。RunPod Serverlessではワーカープロセスの
 # グローバルスコープでモデルをロードし、handler()呼び出しのたびに再ロードしない。
 #
-# R2アップロードについて: modal/app.pyと同じ理由でシンプル化のため、生成したPLYを
-# base64データURLとして返す簡易実装に留める（前回同様スコープ外。本番運用でのR2永続化は
-# 別途実装）。
+# R2アップロードについて: 2026-07-12実機デプロイで判明した重大な訂正。当初はbase64データURLで
+# 返す簡易実装だったが、RunPod公式の payload size limit（/run=10MB、/runsync=20MB）に
+# 262144 Gaussianのbase64化PLY（約24MB）が抵触し、handler()自体は正常完了(executionTime
+# 実測23秒台で安定)するにもかかわらず、output全体がAPIレスポンスから黙って欠落するという
+# 実害を実機で確認した(https://www.answeroverflow.com/m/1199970565381967982 等、RunPod公式の
+# 「大きな結果はクラウドストレージへ保存しリンクを返すこと」という推奨に反していた)。
+# そのためR2への実アップロードを実装した。CloudflareのR2はS3互換APIのため、boto3の
+# S3クライアントをR2のエンドポイントへ向けて使う。認証情報はRunPodエンドポイントの
+# 環境変数として別途設定する必要がある(CLOUDFLARE_R2_ENDPOINT/ACCESS_KEY/SECRET_KEY/
+# BUCKET/PUBLIC_URL。CLAUDE.md記載のSisliR既存の命名規則と統一)。
 
-import base64
 import io
 import os
 import tempfile
+import uuid
 from typing import Any
 
+import boto3
 import requests
 import runpod
 
@@ -110,6 +118,34 @@ def run_inference(image_bytes: bytes, num_gaussians: int) -> tuple[bytes, int]:
     return ply_bytes, num_gaussians
 
 
+def upload_ply_to_r2(ply_bytes: bytes) -> str:
+    """
+    生成したPLYをCloudflare R2へアップロードし、公開URLを返す。
+    R2はS3互換APIのため、boto3のS3クライアントをR2のエンドポイントへ向けて使う
+    （2026-07-12実装。CLAUDE.md「環境変数」節のCLOUDFLARE_R2_*命名規則と統一）。
+    """
+    endpoint = os.environ["CLOUDFLARE_R2_ENDPOINT"]
+    access_key = os.environ["CLOUDFLARE_R2_ACCESS_KEY"]
+    secret_key = os.environ["CLOUDFLARE_R2_SECRET_KEY"]
+    bucket = os.environ["CLOUDFLARE_R2_BUCKET"]
+    public_url = os.environ["CLOUDFLARE_R2_PUBLIC_URL"]
+
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+    )
+    key = f"triposplat-selfhost/{uuid.uuid4()}.ply"
+    client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=ply_bytes,
+        ContentType="application/octet-stream",
+    )
+    return f"{public_url.rstrip('/')}/{key}"
+
+
 def handler(job: dict[str, Any]) -> dict[str, Any]:
     """
     RunPod Serverlessのjobエントリポイント。
@@ -131,9 +167,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
 
         ply_bytes, gaussian_count = run_inference(response.content, num_gaussians)
 
-        # 簡易実装: R2アップロードは別途実装（本ファイル冒頭の注記参照）。
-        ply_base64 = base64.b64encode(ply_bytes).decode("ascii")
-        ply_url = f"data:application/octet-stream;base64,{ply_base64}"
+        ply_url = upload_ply_to_r2(ply_bytes)
 
         return {"ply_url": ply_url, "gaussian_count": gaussian_count}
     except Exception as e:  # noqa: BLE001 - RunPod handlerはエラーをJSONで返す契約
