@@ -10,10 +10,19 @@
 # Serverlessのコンテナビルド環境固有の問題（ビルド時間・ネットワーク制約等）までは
 # 検証できていない。infra/triposplat-selfhost/README.md のデプロイ手順を参照すること。
 #
-# runpod/pytorchベースイメージを使う（依頼内容記載の標準パターン）。torch 2.4.1+cu124相当の
-# タグを使用（2026-07-12実機検証済みの組み合わせに近いもの。厳密なパッチバージョン一致は
-# 不要で、最新の安定版でも問題ないことをREADME側で確認済み）。
-FROM runpod/pytorch:2.4.1-py3.11-cuda12.4.1-devel-ubuntu22.04
+# runpod/pytorchベースイメージを使う（依頼内容記載の標準パターン）。
+#
+# 2026-07-12訂正: 当初指定していた`2.4.1-py3.11-cuda12.4.1-devel-ubuntu22.04`はDocker Hub上に
+# 実在しないタグで、RunPodの実ビルドで
+# 「failed to resolve source metadata ... not found」として失敗した（実機PodではPyTorch
+# 2.4.1+cu124が動いていたが、それはPodの既定環境であり、runpod/pytorch Hubイメージの
+# タグとは別物だった）。Docker Hub API(`hub.docker.com/v2/repositories/runpod/pytorch/tags`)
+# で実在するタグを直接確認し、現行の命名規則(`X.X.X-dev-nix-cuXXXX-torchXXX-ubuntuXXXX`)に
+# 沿った、検証時点で最も古い(=2.4.1に最も近い)組み合わせである torch 2.6.0 / CUDA 12.8.1 /
+# Ubuntu 22.04 のタグへ差し替えた。TripoSplatはPyTorchの厳密なバージョン固定を要求しない
+# （README「install torch and torchvision according to your environment」）ため、
+# 2.4.1→2.6.0の差は問題にならない想定。ただし本タグでの実ビルド確認はまだ行っていない。
+FROM runpod/pytorch:1.0.7-dev-nix-cu1281-torch260-ubuntu2204
 
 WORKDIR /app
 
