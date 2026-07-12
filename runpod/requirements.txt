@@ -7,9 +7,11 @@
 # torch(2.4.1+cu124で動作確認、ただし新規コンテナでは最新の安定版で問題ない)・torchvision・
 # numpy・safetensors・pillow・tqdm・huggingface_hub。READMEに明記のとおり
 # transformers・diffusers は不要（TripoSplat独自実装）。
+#
+# 2026-07-12追記: torch/torchvisionはrunpod/pytorchベースイメージに既に同梱されている
+# （Dockerfile参照）。ここに無指定で含めるとpipがCUDA非対応のCPU版や別バージョンで
+# 再インストールしてしまい、ビルド時間の増大やCUDA不整合を招くリスクがあるため除外した。
 runpod>=1.7.0
-torch
-torchvision
 numpy
 safetensors
 pillow
