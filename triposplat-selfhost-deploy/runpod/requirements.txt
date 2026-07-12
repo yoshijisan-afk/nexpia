@@ -1,0 +1,18 @@
+# infra/triposplat-selfhost/runpod/requirements.txt
+#
+# Part BBB（Gaussian Splatパイプライン拡張）BBB.13・ADR-320 PoC (J-6a): RunPod Serverless
+# handler用の依存関係。
+#
+# 2026-07-12実機検証済み（RunPod L4 Pod上で実際に動作確認した組み合わせ）:
+# torch(2.4.1+cu124で動作確認、ただし新規コンテナでは最新の安定版で問題ない)・torchvision・
+# numpy・safetensors・pillow・tqdm・huggingface_hub。READMEに明記のとおり
+# transformers・diffusers は不要（TripoSplat独自実装）。
+runpod>=1.7.0
+torch
+torchvision
+numpy
+safetensors
+pillow
+tqdm
+huggingface_hub
+requests
