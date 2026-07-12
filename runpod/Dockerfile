@@ -30,7 +30,11 @@ WORKDIR /app
 # `from triposplat import TripoSplatPipeline` が解決することを確認済み）。
 RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSplat.git /opt/triposplat
 
-COPY requirements.txt .
+# 2026-07-12訂正: RunPodのGitHubビルドはリポジトリルートをビルドコンテキストとして
+# `docker buildx build --file runpod/Dockerfile <repoルート>` の形で実行するため（実ビルドログの
+# コマンドで確認）、COPYの参照元はDockerfileからの相対パスではなく、コンテキストルート
+# （＝リポジトリルート）からの相対パスで指定する必要がある。
+COPY runpod/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # モデル重み(計3.6GB)をビルド時に1回だけダウンロードし、イメージへ焼き込む（実行時に都度
@@ -43,6 +47,6 @@ snapshot_download(\
     allow_patterns=['diffusion_models/*', 'vae/*', 'clip_vision/*', 'background_removal/*'], \
 )"
 
-COPY handler.py .
+COPY runpod/handler.py .
 
 CMD ["python", "-u", "handler.py"]
