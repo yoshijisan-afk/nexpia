@@ -128,13 +128,16 @@ RUN mkdir -p /tmp/extensions && \
 # 2026-07-14訂正: setup.sh自身が同じ`/tmp/extensions/nvdiffrast`・`/tmp/extensions/nvdiffrec`
 # パスに既にクローン済みのため、`rm -rf`で確実にクリーンな状態にしてから再クローンする
 # （そうしないと`fatal: destination path ... already exists`でビルドが失敗する）。
+# 2026-07-14再訂正: flash-attnにも`--no-build-isolation`が必須（付け忘れていた）。
+# pipのデフォルトのビルド分離では、既にインストール済みのtorchが隔離ビルド環境から見えず
+# `ModuleNotFoundError: No module named 'torch'`でビルドが失敗する。
 RUN mkdir -p /tmp/extensions && \
     rm -rf /tmp/extensions/nvdiffrast /tmp/extensions/nvdiffrec && \
     git clone -b v0.4.0 https://github.com/NVlabs/nvdiffrast.git /tmp/extensions/nvdiffrast && \
     python -m pip install /tmp/extensions/nvdiffrast --no-build-isolation && \
     git clone -b renderutils https://github.com/JeffreyXiang/nvdiffrec.git /tmp/extensions/nvdiffrec && \
     python -m pip install /tmp/extensions/nvdiffrec --no-build-isolation && \
-    python -m pip install --no-cache-dir flash-attn==2.7.3
+    python -m pip install --no-cache-dir flash-attn==2.7.3 --no-build-isolation
 
 # ── モデル重みはビルド時に焼き込まない（2026-07-14方針転換）──
 # 当初はTripoSplatと同じくビルド時焼き込み（Dockerビルドシークレット経由でHF_TOKENを渡し
