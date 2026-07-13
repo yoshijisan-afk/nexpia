@@ -102,17 +102,17 @@ RUN mkdir -p /tmp/extensions && \
 # 確認できた場合、または永続ネットワークボリュームでキャッシュを共有する設計に切替できた
 # 場合は、ビルド時焼き込みへ戻すことを検討する。
 
-# 2026-07-14: デプロイ先GitHubリポジトリ(nexpia)では`triposplat-selfhost-deploy/runpod/`
-# という「トップレベルデプロイ用フォルダ＋runpod/サブフォルダ」構成が実績があるため、
-# 本デプロイも`trellis2-selfhost-deploy/runpod/`という同型の構成でアップロードする想定。
-# RunPod側の「Root Directory」を`trellis2-selfhost-deploy`に設定し、その配下を
-# ビルドコンテキストとすることで、下記COPY元パス`runpod/...`が成立する
-# （TripoSplatの実績あるデプロイ設定をそのまま踏襲）。
-COPY runpod/requirements.txt .
+# 2026-07-14訂正: RunPodの「Deploy from a GitHub repository」画面では、Dockerfile pathを
+# 指定する単一のフィールドのみが存在し(ビルドコンテキストを別途指定するRoot Directory相当の
+# フィールドは無い)、ビルドコンテキストは常にリポジトリルートになる（実際のUI確認・
+# 2026-07-14）。デプロイ先(nexpia)の`trellis2-selfhost/runpod/Dockerfile`に対し、
+# Dockerfile path欄には`trellis2-selfhost/runpod/Dockerfile`を指定する。
+# よってCOPY元パスもリポジトリルートからのフルパスで指定する必要がある。
+COPY trellis2-selfhost/runpod/requirements.txt .
 # runpod/baseにOS(apt)経由で事前導入済みのパッケージがpipのRECORDファイルを持たず
 # `uninstall-no-record-file`エラーになる問題への対処（TripoSplat Dockerfileと同じ理由・対処）。
 RUN python -m pip install --no-cache-dir --ignore-installed -r requirements.txt
 
-COPY runpod/handler.py .
+COPY trellis2-selfhost/runpod/handler.py .
 
 CMD ["python", "-u", "handler.py"]
