@@ -1,0 +1,14 @@
+# infra/trellis2-selfhost/runpod/requirements.txt
+#
+# Part AAA（パイプライン管制盤＋プリセット）AAA.11.1・ADR-325: RunPod Serverless
+# handler用の追加依存関係。
+#
+# torch/torchvision/transformers/pillow/numpy/safetensors/tqdm/huggingface_hub等の
+# TRELLIS.2本体が必要とする依存関係は、Dockerfile内で公式`setup.sh`実行 + 明示的な
+# torch==2.6.0+cu124再ピン留めによって導入済みのため、ここには含めない
+# （infra/triposplat-selfhost/runpod/requirements.txtの「setup.sh側で入るものは書かない」
+# 方針と同じ）。ここに書くのはhandler.py自身が直接使う、setup.sh側ではカバーされない
+# 依存関係のみ。
+runpod>=1.7.0
+boto3
+requests
