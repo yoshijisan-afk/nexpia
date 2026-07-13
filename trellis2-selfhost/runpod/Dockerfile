@@ -63,6 +63,18 @@ WORKDIR /opt/TRELLIS2
 RUN sed -i 's/self\.model\.layer/self.model.model.layer/' \
     trellis2/modules/image_feature_extractor.py
 
+# ── 既知の罠(4)の対処: ビルド環境にGPUが無いためCUDAアーキテクチャの自動検出が失敗する ──
+# 2026-07-14実際のRunPod GitHubビルド(GPU無しのビルド専用マシン)で新たに発覚:
+# o_voxel/cumesh/flex_gemmのビルド時、torchが`torch.cuda.get_device_capability()`で
+# 現在のGPUのアーキテクチャを自動検出しようとするが、ビルド環境にGPUが接続されていないため
+# 検出結果が空リストになり、`torch/utils/cpp_extension.py`の`_get_cuda_arch_flags()`内で
+# `arch_list[-1] += '+PTX'`が`IndexError: list index out of range`でクラッシュする
+# （RunPod **Pod**上での対話的な実機検証ではGPUが常時接続されているため発覚しなかった、
+# ビルド専用マシン特有の問題）。`TORCH_CUDA_ARCH_LIST`を明示的に設定し、GPU検出に頼らず
+# 対象アーキテクチャ（Ampere sm_80/86・Hopper sm_90。AAA.11.1のGPU世代要件と一致させる）を
+# 指定することで回避する。
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;9.0"
+
 # ── 公式インストールスクリプト実行 (--new-envなし。condaは不要、system Pythonへ直接) ──
 # AAA.11.1実機検証済み: --flexgemm ステップがtorchを意図せず2.13.0(cu13.0ビルド)へ上書きする
 # 副作用があり、o_voxelのビルドがCUDAバージョン不一致で失敗する。setup.sh自体がここで
