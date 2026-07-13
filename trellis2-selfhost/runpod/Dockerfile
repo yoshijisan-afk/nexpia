@@ -51,7 +51,15 @@ WORKDIR /opt
 # microsoft/TRELLIS.2リポジトリのクローン（AAA.11.1: リポジトリ名はハイフンではなく
 # ピリオド「TRELLIS.2」。ハイフン表記「TRELLIS-2」で検索すると誤って401になった経緯が
 # あるため注意）。
-RUN git clone --depth 1 https://github.com/microsoft/TRELLIS.2.git /opt/TRELLIS2
+# ── 既知の罠(6)の対処: --recursiveの欠落によりEigenサブモジュールが空になる ──
+# 2026-07-14実際のビルドで新規発覚: `o-voxel/third_party/eigen`はgit submoduleであり、
+# 単純な`git clone`（--recursiveなし）ではサブモジュールの中身が取得されず空ディレクトリの
+# ままになる。この状態でo_voxelのC++拡張をビルドすると
+# `fatal error: Eigen/Dense: No such file or directory`でコンパイルが失敗する
+# （2026-07-13のRunPod Pod実機検証では`git clone --recursive`を使っていたため
+# この問題は再現しなかった。Dockerfile化の際に--recursiveの付け忘れという単純な
+# 見落としだった）。
+RUN git clone --depth 1 --recursive https://github.com/microsoft/TRELLIS.2.git /opt/TRELLIS2
 
 WORKDIR /opt/TRELLIS2
 
