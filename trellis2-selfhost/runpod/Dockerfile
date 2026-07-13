@@ -75,12 +75,25 @@ RUN sed -i 's/self\.model\.layer/self.model.model.layer/' \
 # 指定することで回避する。
 ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;9.0"
 
+# ── 既知の罠(5)の対処: setup.shがGPU不在のビルド環境で即座に失敗する ──
+# 2026-07-14実際のビルドで新たに発覚: setup.shは冒頭で`command -v nvidia-smi`のみを見て
+# CUDA/ROCmプラットフォームを判定しており、存在しない場合は"Error: No supported GPU found"で
+# 即座にexit 1する（--flash-attn/--nvdiffrast/--nvdiffrec等の個別フラグ処理に到達する前に
+# スクリプト全体が終了する。setup.sh自体は`nvidia-smi`の出力を一切パースしておらず、
+# 単なる存在確認のみのため、実体を伴わないダミーの`nvidia-smi`をPATH上に置くだけで
+# この判定を通過できる）。setup.sh実行後、実行時に本物の`nvidia-smi`（RunPod
+# ServerlessワーカーがGPUと共に提供する）と衝突しないよう、このダミーは直後に削除する。
+RUN printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/nvidia-smi && chmod +x /usr/local/bin/nvidia-smi
+
 # ── 公式インストールスクリプト実行 (--new-envなし。condaは不要、system Pythonへ直接) ──
 # AAA.11.1実機検証済み: --flexgemm ステップがtorchを意図せず2.13.0(cu13.0ビルド)へ上書きする
 # 副作用があり、o_voxelのビルドがCUDAバージョン不一致で失敗する。setup.sh自体がここで
 # エラー終了しても後続ステップで torch を明示的に再インストールし o_voxel を再ビルドするため、
 # `|| true` でビルドを継続させる。
 RUN bash setup.sh --basic --flash-attn --nvdiffrast --nvdiffrec --cumesh --o-voxel --flexgemm || true
+
+# ダミーのnvidia-smiを削除し、実行時に本物と衝突しないようにする。
+RUN rm -f /usr/local/bin/nvidia-smi
 
 # ── 既知の罠(1) の対処: torch/torchvisionをcu124ビルドへ明示的に再ピン留め ──
 RUN python -m pip install --no-cache-dir \
