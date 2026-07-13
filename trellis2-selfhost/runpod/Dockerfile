@@ -117,6 +117,21 @@ RUN mkdir -p /tmp/extensions && \
     cp -r /opt/TRELLIS2/o-voxel /tmp/extensions/o-voxel && \
     python -m pip install /tmp/extensions/o-voxel --no-build-isolation
 
+# ── 既知の罠(7)の対処: setup.sh内部でnvdiffrast/nvdiffrecが欠落する ──
+# 2026-07-14実際のRunPodデプロイで発覚: setup.shの実行順序はFLASHATTN→NVDIFFRAST→
+# NVDIFFREC→CUMESH→FLEXGEMM→OVOXELであり、後段のFLEXGEMMステップの失敗（既知の罠(1)）
+# が響くことは無いはずだったが、実際には`No module named 'nvdiffrast'`が実行時に発生した
+# （setup.sh単体のRUNステップは`|| true`でDockerビルド自体は継続するが、nvdiffrast/nvdiffrec
+# 自体のビルドがこのビルド環境固有の要因—GPU不在によるCUDAアーキテクチャ自動検出の問題等—で
+# 静かに失敗していたと推測される。o_voxelと同様、setup.shの内部処理に頼らず、正しくピン留め
+# したtorch==2.6.0+cu124に対して明示的に再ビルドすることで確実性を担保する）。
+RUN mkdir -p /tmp/extensions && \
+    git clone -b v0.4.0 https://github.com/NVlabs/nvdiffrast.git /tmp/extensions/nvdiffrast && \
+    python -m pip install /tmp/extensions/nvdiffrast --no-build-isolation && \
+    git clone -b renderutils https://github.com/JeffreyXiang/nvdiffrec.git /tmp/extensions/nvdiffrec && \
+    python -m pip install /tmp/extensions/nvdiffrec --no-build-isolation && \
+    python -m pip install --no-cache-dir flash-attn==2.7.3
+
 # ── モデル重みはビルド時に焼き込まない（2026-07-14方針転換）──
 # 当初はTripoSplatと同じくビルド時焼き込み（Dockerビルドシークレット経由でHF_TOKENを渡し
 # パイプラインを1回構築させて強制ダウンロード）を狙っていたが、RunPodのGitHub連携ビルドが
